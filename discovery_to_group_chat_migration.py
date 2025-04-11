@@ -9,8 +9,8 @@ import json
 import uuid
 
 # Basic auth header values
-ES_USERNAME = "dev_user"
-ES_PASSWORD = "W!zW+IcQF[h%XwD5"
+ES_USERNAME = "xxx"
+ES_PASSWORD = "xxx"
 
 PAGE_SIZE = 10
 DEBUG_MODE = True
@@ -210,7 +210,7 @@ def main():
     logger.info("Data transformation completed")
 
     logger.info("Preparing to push data to MongoDB")
-    mongo_uri = "mongodb+srv://dev_user:x2KohhNUdbivXg4@common-mongo.allen-internal-stage.in/?authMechanism=DEFAULT&tls=false"
+    mongo_uri = "mongodb+srv://xxxx:xxxx@common-mongo.allen-internal-stage.in/?authMechanism=DEFAULT&tls=false"
     mongo_db = "group_db"
     mongo_collection = "message"
     push_to_mongodb(transformed_data, mongo_uri, mongo_db, mongo_collection)
