@@ -9,8 +9,13 @@ import json
 import uuid
 
 # Basic auth header values
-ES_USERNAME = "xxx"
-ES_PASSWORD = "xxx"
+ES_HOST = "vpc-staging-discovery-service-1-552nqymgxx4hpi66hbu7u6od6u.ap-south-1.es.amazonaws.com"
+ES_USERNAME = "xxxx"
+ES_PASSWORD = "xxxx"
+
+MONGO_USERNAME = "xxxx"
+MONGO_PASSWORD = "xxxx"
+MONGO_HOST = f"mongodb+srv://{MONGO_USERNAME}:{MONGO_PASSWORD}@common-mongo.allen-internal-stage.in/?authMechanism=DEFAULT&tls=false"
 
 PAGE_SIZE = 10
 DEBUG_MODE = True
@@ -199,7 +204,7 @@ def check_mongodb_connection(mongo_uri: str, database: str, collection: str):
 def main():
     logger.info("Starting job")
 
-    es_host = "vpc-staging-discovery-service-1-552nqymgxx4hpi66hbu7u6od6u.ap-south-1.es.amazonaws.com"
+    es_host = ES_HOST
     es_index = "user_communication"
     logger.info(f"Fetching data from Elasticsearch: host={es_host}, index={es_index}")
     raw_data = fetch_from_elasticsearch(None, es_host, es_index)
@@ -210,7 +215,7 @@ def main():
     logger.info("Data transformation completed")
 
     logger.info("Preparing to push data to MongoDB")
-    mongo_uri = "mongodb+srv://xxxx:xxxx@common-mongo.allen-internal-stage.in/?authMechanism=DEFAULT&tls=false"
+    mongo_uri = MONGO_HOST
     mongo_db = "group_db"
     mongo_collection = "message"
     push_to_mongodb(transformed_data, mongo_uri, mongo_db, mongo_collection)
