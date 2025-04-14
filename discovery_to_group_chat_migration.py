@@ -6,7 +6,6 @@ from pymongo.errors import BulkWriteError
 import time
 import logging
 import json
-import uuid
 
 # Basic auth header values
 ES_HOST = "vpc-staging-discovery-service-1-552nqymgxx4hpi66hbu7u6od6u.ap-south-1.es.amazonaws.com"
@@ -94,7 +93,12 @@ def transform_data(raw_data: list) -> pd.DataFrame:
             user_id = item.get("user_id", "")
             msg_id = item.get("id", "")
             now = int(time.time())
-            expire_at = item.get("expiry", now)
+
+            expiry_val = item.get("expiry")
+            if not expiry_val:
+                expire_at = now + 365 * 24 * 60 * 60
+            else:
+                expire_at = expiry_val
 
             entity_data = item.get("entity_data", {})
             sender_info = entity_data.get("sender_info", {})
@@ -120,8 +124,6 @@ def transform_data(raw_data: list) -> pd.DataFrame:
                 "Schedule": None
             }
 
-            actions = []
-
             text_content = {
                 "Title": "",
                 "Body": "",
@@ -129,7 +131,7 @@ def transform_data(raw_data: list) -> pd.DataFrame:
                 "ImageURL": "",
                 "ExpandedImageURL": "",
                 "Priority": 0,
-                "Actions": actions,
+                "Actions": [],
                 "NoticeInfo": notice_info
             }
 
@@ -195,6 +197,8 @@ def check_mongodb_connection(mongo_uri: str, database: str, collection: str):
         doc_count = collection_ref.count_documents({})
         if DEBUG_MODE:
             logger.debug(f"Successfully connected to MongoDB. Document count in collection '{collection}': {doc_count}")
+        else:
+            logger.info(f"Successfully connected to MongoDB. Document count in collection '{collection}': {doc_count}")
         return doc_count
 
     except Exception as e:
@@ -208,22 +212,25 @@ def main():
     es_index = "user_communication"
     logger.info(f"Fetching data from Elasticsearch: host={es_host}, index={es_index}")
     raw_data = fetch_from_elasticsearch(None, es_host, es_index)
-    logger.debug(raw_data)
+
+    if DEBUG_MODE:
+        logger.debug(raw_data)
+
     logger.info("Transforming data")
     transformed_data = transform_data(raw_data)
-
     logger.info("Data transformation completed")
 
     logger.info("Preparing to push data to MongoDB")
     mongo_uri = MONGO_HOST
     mongo_db = "group_db"
     mongo_collection = "message"
-    check_mongodb_connection(mongo_uri, mongo_db, mongo_collection)
+
+    if DEBUG_MODE:
+        check_mongodb_connection(mongo_uri, mongo_db, mongo_collection)
 
     push_to_mongodb(transformed_data, mongo_uri, mongo_db, mongo_collection)
 
     logger.info("Committing Glue job")
-
     logger.info("Job completed successfully")
 
 if __name__ == "__main__":
