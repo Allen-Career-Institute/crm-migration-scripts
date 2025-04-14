@@ -27,6 +27,7 @@ else:
 
 logger = logging.getLogger(__name__)
 
+
 def fetch_from_elasticsearch(spark, es_host: str, index: str) -> list:
     logger.info(f"Connecting to Elasticsearch at {es_host} for index {index}")
     es = OpenSearch(
@@ -83,6 +84,7 @@ def fetch_from_elasticsearch(spark, es_host: str, index: str) -> list:
 
     logger.debug(f"Total records fetched: {len(records)}")
     return records
+
 
 def transform_data(raw_data: list) -> pd.DataFrame:
     logger.info("Starting data transformation using pandas")
@@ -165,6 +167,7 @@ def transform_data(raw_data: list) -> pd.DataFrame:
     logger.info("Data transformation completed")
     return df
 
+
 def push_to_mongodb(df: pd.DataFrame, mongo_uri: str, database: str, collection: str):
     logger.info(f"Connecting to MongoDB at {mongo_uri}, database: {database}, collection: {collection}")
     client = MongoClient(mongo_uri)
@@ -182,6 +185,7 @@ def push_to_mongodb(df: pd.DataFrame, mongo_uri: str, database: str, collection:
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
 
+
 def check_mongodb_connection(mongo_uri: str, database: str, collection: str):
     logger.info(f"Checking MongoDB connection: {mongo_uri}, DB: {database}, Collection: {collection}")
     try:
@@ -196,6 +200,7 @@ def check_mongodb_connection(mongo_uri: str, database: str, collection: str):
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB or retrieve document count: {e}")
         return None
+
 
 def main():
     logger.info("Starting job")
@@ -215,6 +220,7 @@ def main():
         push_to_mongodb(transformed_data, MONGO_HOST, mongo_db, mongo_collection)
 
     logger.info("Job completed successfully")
+
 
 if __name__ == "__main__":
     main()
