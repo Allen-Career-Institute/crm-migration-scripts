@@ -16,11 +16,15 @@ MONGO_USERNAME = "xxxx"
 MONGO_PASSWORD = "xxxx"
 MONGO_HOST = f"mongodb+srv://{MONGO_USERNAME}:{MONGO_PASSWORD}@common-mongo.allen-internal-stage.in/?authMechanism=DEFAULT&tls=false"
 
-PAGE_SIZE = 10
-DEBUG_MODE = True
+PAGE_SIZE = 1000
+DEBUG_MODE = False
 
-# Configure logging
-logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
+# Configure logging based on DEBUG_MODE
+if DEBUG_MODE:
+    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
+else:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
 logger = logging.getLogger(__name__)
 
 def fetch_from_elasticsearch(spark, es_host: str, index: str) -> list:
@@ -77,28 +81,22 @@ def fetch_from_elasticsearch(spark, es_host: str, index: str) -> list:
             logger.debug("Stopping because of debug mode")
             break
 
-    if DEBUG_MODE:
-        logger.debug(records)
-
-    logger.info(f"Total records fetched: {len(records)}")
+    logger.debug(f"Total records fetched: {len(records)}")
     return records
 
 def transform_data(raw_data: list) -> pd.DataFrame:
     logger.info("Starting data transformation using pandas")
     transformed = []
+    now = int(time.time())
 
     for item in raw_data:
         try:
             logger.debug(item)
             user_id = item.get("user_id", "")
             msg_id = item.get("id", "")
-            now = int(time.time())
 
             expiry_val = item.get("expiry")
-            if not expiry_val:
-                expire_at = now + 365 * 24 * 60 * 60
-            else:
-                expire_at = expiry_val
+            expire_at = expiry_val if expiry_val else now + 365 * 24 * 60 * 60
 
             entity_data = item.get("entity_data", {})
             sender_info = entity_data.get("sender_info", {})
@@ -185,9 +183,6 @@ def push_to_mongodb(df: pd.DataFrame, mongo_uri: str, database: str, collection:
         logger.error(f"Unexpected error: {e}")
 
 def check_mongodb_connection(mongo_uri: str, database: str, collection: str):
-    """
-    Connect to MongoDB and log the number of documents in the specified collection.
-    """
     logger.info(f"Checking MongoDB connection: {mongo_uri}, DB: {database}, Collection: {collection}")
     try:
         client = MongoClient(mongo_uri)
@@ -195,10 +190,7 @@ def check_mongodb_connection(mongo_uri: str, database: str, collection: str):
         collection_ref = db[collection]
 
         doc_count = collection_ref.count_documents({})
-        if DEBUG_MODE:
-            logger.debug(f"Successfully connected to MongoDB. Document count in collection '{collection}': {doc_count}")
-        else:
-            logger.info(f"Successfully connected to MongoDB. Document count in collection '{collection}': {doc_count}")
+        logger.debug(f"Successfully connected to MongoDB. Document count in collection '{collection}': {doc_count}")
         return doc_count
 
     except Exception as e:
@@ -208,29 +200,20 @@ def check_mongodb_connection(mongo_uri: str, database: str, collection: str):
 def main():
     logger.info("Starting job")
 
-    es_host = ES_HOST
     es_index = "user_communication"
-    logger.info(f"Fetching data from Elasticsearch: host={es_host}, index={es_index}")
-    raw_data = fetch_from_elasticsearch(None, es_host, es_index)
-
-    if DEBUG_MODE:
-        logger.debug(raw_data)
-
+    logger.info(f"Fetching data from Elasticsearch: host={ES_HOST}, index={es_index}")
+    raw_data = fetch_from_elasticsearch(None, ES_HOST, es_index)
     logger.info("Transforming data")
     transformed_data = transform_data(raw_data)
-    logger.info("Data transformation completed")
 
     logger.info("Preparing to push data to MongoDB")
-    mongo_uri = MONGO_HOST
     mongo_db = "group_db"
     mongo_collection = "message"
-
     if DEBUG_MODE:
-        check_mongodb_connection(mongo_uri, mongo_db, mongo_collection)
+        check_mongodb_connection(MONGO_HOST, mongo_db, mongo_collection)
+    else:
+        push_to_mongodb(transformed_data, MONGO_HOST, mongo_db, mongo_collection)
 
-    push_to_mongodb(transformed_data, mongo_uri, mongo_db, mongo_collection)
-
-    logger.info("Committing Glue job")
     logger.info("Job completed successfully")
 
 if __name__ == "__main__":
