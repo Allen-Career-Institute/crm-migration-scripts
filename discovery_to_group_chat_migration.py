@@ -94,7 +94,7 @@ def transform_data(raw_data: list) -> pd.DataFrame:
             user_id = item.get("user_id", "")
             msg_id = item.get("id", "")
             now = int(time.time())
-            expire_at = item.get("expiry", now )
+            expire_at = item.get("expiry", now)
 
             entity_data = item.get("entity_data", {})
             sender_info = entity_data.get("sender_info", {})
@@ -193,13 +193,13 @@ def check_mongodb_connection(mongo_uri: str, database: str, collection: str):
         collection_ref = db[collection]
 
         doc_count = collection_ref.count_documents({})
-        logger.info(f"Successfully connected to MongoDB. Document count in collection '{collection}': {doc_count}")
+        if DEBUG_MODE:
+            logger.debug(f"Successfully connected to MongoDB. Document count in collection '{collection}': {doc_count}")
         return doc_count
 
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB or retrieve document count: {e}")
         return None
-
 
 def main():
     logger.info("Starting job")
@@ -218,8 +218,9 @@ def main():
     mongo_uri = MONGO_HOST
     mongo_db = "group_db"
     mongo_collection = "message"
+    check_mongodb_connection(mongo_uri, mongo_db, mongo_collection)
+
     push_to_mongodb(transformed_data, mongo_uri, mongo_db, mongo_collection)
-    # check_mongodb_connection(mongo_uri, mongo_db, mongo_collection)
 
     logger.info("Committing Glue job")
 
