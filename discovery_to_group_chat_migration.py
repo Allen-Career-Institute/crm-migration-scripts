@@ -94,7 +94,7 @@ def transform_data(raw_data: list) -> pd.DataFrame:
             user_id = item.get("user_id", "")
             msg_id = item.get("id", "")
             now = int(time.time())
-            expire_at = item.get("expiry", now + 1800)
+            expire_at = item.get("expiry", now )
 
             entity_data = item.get("entity_data", {})
             sender_info = entity_data.get("sender_info", {})
