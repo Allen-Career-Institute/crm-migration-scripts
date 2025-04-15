@@ -62,14 +62,14 @@ def fetch_from_elasticsearch(spark, es_host: str, index: str) -> list:
         ]
     }
 
-    logger.info("Executing initial search query")
+    logger.info("Executing search query")
     es_data = es.search(index=index, body=query, scroll="1m")
     scroll_id = es_data["_scroll_id"]
     records = [hit["_source"] for hit in es_data["hits"]["hits"]]
     logger.info(f"Fetched {len(records)} records in initial query")
 
     while True:
-        logger.info("Fetching next batch of records using scroll API")
+        logger.debug("Fetching next batch of records using scroll API")
         scroll_data = es.scroll(scroll_id=scroll_id, scroll="1m")
         scroll_id = scroll_data["_scroll_id"]
         hits = scroll_data["hits"]["hits"]
@@ -77,12 +77,12 @@ def fetch_from_elasticsearch(spark, es_host: str, index: str) -> list:
             logger.info("No more records to fetch")
             break
         records.extend([hit["_source"] for hit in hits])
-        logger.info(f"Fetched {len(hits)} additional records")
+        logger.debug(f"Fetched {len(hits)} additional records")
         if DEBUG_MODE:
             logger.debug("Stopping because of debug mode")
             break
 
-    logger.debug(f"Total records fetched: {len(records)}")
+    logger.info(f"Total records fetched: {len(records)}")
     return records
 
 
@@ -103,25 +103,24 @@ def transform_data(raw_data: list) -> pd.DataFrame:
             entity_data = item.get("entity_data", {})
             sender_info = entity_data.get("sender_info", {})
 
+            sender_type = 1 if sender_info.get("sender_type") == "NOTICE_SENDER_TEACHER" else 0
+            
             notice_info = {
-                "NoticeID": msg_id,
-                "Title": entity_data.get("title", ""),
-                "Description": entity_data.get("description", ""),
-                "Priority": item.get("priority", ""),
-                "SenderType": sender_info.get("sender_type", ""),
-                "Sender": sender_info.get("sender", ""),
-                "Category": item.get("category", ""),
-                "Media": entity_data.get("media", []),
-                "Expiry": expire_at,
-                "Recipient": "RECIPIENT_STUDENT",
-                "Status": "NOTICE_STATUS_SEND",
-                "CreatedBy": sender_info.get("sender", ""),
-                "CreatedAt": item.get("created_at", now),
-                "UpdatedBy": "",
-                "UpdatedAt": 0,
-                "DeletedBy": "",
-                "DeletedAt": 0,
-                "Schedule": None
+                "notice_id": msg_id,
+                "title": entity_data.get("title", ""),
+                "description": entity_data.get("description", ""),
+                "priority": item.get("priority", ""),
+                "sender_info": {
+                    "sender_type": sender_type,
+                    "sender": sender_info.get("sender", ""),
+                },
+                "category": item.get("category", ""),
+                "media": entity_data.get("media", []),
+                "expiry": expire_at,
+                "recipient": 1,
+                "status": 2,
+                "created_by": sender_info.get("sender", ""),
+                "created_at": item.get("created_at", now),
             }
 
             text_content = {
@@ -134,6 +133,8 @@ def transform_data(raw_data: list) -> pd.DataFrame:
                 "Actions": [],
                 "NoticeInfo": notice_info
             }
+
+            logger.debug(f"Transformed item: {text_content}")
 
             transformed.append({
                 "_id": msg_id,
@@ -164,7 +165,7 @@ def transform_data(raw_data: list) -> pd.DataFrame:
             logger.exception(e)
 
     df = pd.DataFrame(transformed)
-    logger.info("Data transformation completed")
+    logger.info("Data transformation completed for %d records", len(df))
     return df
 
 
@@ -206,20 +207,19 @@ def main():
     logger.info("Starting job")
 
     es_index = "user_communication"
-    logger.info(f"Fetching data from Elasticsearch: host={ES_HOST}, index={es_index}")
+
     raw_data = fetch_from_elasticsearch(None, ES_HOST, es_index)
-    logger.info("Transforming data")
     transformed_data = transform_data(raw_data)
 
-    logger.info("Preparing to push data to MongoDB")
     mongo_db = "group_db"
     mongo_collection = "message"
+
     if DEBUG_MODE:
         check_mongodb_connection(MONGO_HOST, mongo_db, mongo_collection)
     else:
         push_to_mongodb(transformed_data, MONGO_HOST, mongo_db, mongo_collection)
 
-    logger.info("Job completed successfully")
+    logger.info("Job completed")
 
 
 if __name__ == "__main__":
