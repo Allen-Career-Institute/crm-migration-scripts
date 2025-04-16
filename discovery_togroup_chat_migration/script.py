@@ -142,7 +142,7 @@ def transform_data(raw_data: list) -> pd.DataFrame:
                 "_id": generate_id(user_id, msg_id),
                 "channel_id": f"notification_{user_id}",
                 "sender_id": "notification-center-id",
-                "seq_id": 69,
+                "seq_id": 0,
                 "reply_to_id": 0,
                 "type": 0,
                 "state": 0,
