@@ -6,6 +6,7 @@ from pymongo.errors import BulkWriteError
 import time
 import logging
 import json
+import hashlib
 
 # Basic auth header values
 ES_HOST = "vpc-staging-discovery-service-1-552nqymgxx4hpi66hbu7u6od6u.ap-south-1.es.amazonaws.com"
@@ -95,7 +96,7 @@ def transform_data(raw_data: list) -> pd.DataFrame:
         try:
             logger.debug(item)
             user_id = item.get("user_id", "")
-            msg_id = item.get("id", "")
+            msg_id = item.get("entity_id", "")
 
             expiry_val = item.get("expiry")
             expire_at = expiry_val if expiry_val else now + 365 * 24 * 60 * 60
@@ -137,7 +138,7 @@ def transform_data(raw_data: list) -> pd.DataFrame:
             logger.debug(f"Transformed item: {text_content}")
 
             transformed.append({
-                "_id": msg_id,
+                "_id": generate_id(user_id, msg_id),
                 "channel_id": f"notification_{user_id}",
                 "sender_id": "notification-center-id",
                 "seq_id": 69,
@@ -201,6 +202,13 @@ def check_mongodb_connection(mongo_uri: str, database: str, collection: str):
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB or retrieve document count: {e}")
         return None
+
+
+def generate_id(user_id, msg_id):
+    input_str = f"{user_id}_{msg_id}"
+    hash_obj = hashlib.sha256(input_str.encode())
+    hash_bytes = hash_obj.digest()
+    return hash_bytes[:12]
 
 
 def main():
