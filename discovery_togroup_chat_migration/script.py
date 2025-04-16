@@ -7,6 +7,7 @@ import time
 import logging
 import json
 import hashlib
+from bson import ObjectId
 
 # Basic auth header values
 ES_HOST = "vpc-staging-discovery-service-1-552nqymgxx4hpi66hbu7u6od6u.ap-south-1.es.amazonaws.com"
@@ -207,8 +208,10 @@ def check_mongodb_connection(mongo_uri: str, database: str, collection: str):
 def generate_id(user_id, msg_id):
     input_str = f"{user_id}_{msg_id}"
     hash_obj = hashlib.sha256(input_str.encode())
-    hash_bytes = hash_obj.digest()
-    return hash_bytes[:12]
+    hash_bytes = hash_obj.digest()[:12]
+    hex_str = hash_bytes.hex()
+    obj = ObjectId(hex_str)
+    return obj
 
 
 def main():
