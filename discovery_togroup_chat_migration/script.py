@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 def fetch_from_elasticsearch(es_host: str, index: str, limit: int = 0) -> list:
     logger.info(f"Connecting to Elasticsearch at {es_host} for index {index}")
+    global es, scroll_id
     if es is None:
         es = OpenSearch(
             [es_host],
@@ -75,7 +76,7 @@ def fetch_from_elasticsearch(es_host: str, index: str, limit: int = 0) -> list:
         }
 
         logger.info("Executing search query")
-        es_data = es.search(index=index, body=query, scroll="1m")
+        es_data = es.search(index=index, body=query, scroll="5m")
         scroll_id = es_data["_scroll_id"]
         records = [hit["_source"] for hit in es_data["hits"]["hits"]]
         logger.info(f"Fetched {len(records)} records in initial query")
@@ -84,7 +85,7 @@ def fetch_from_elasticsearch(es_host: str, index: str, limit: int = 0) -> list:
 
     while True:
         logger.debug("Fetching next batch of records using scroll API")
-        scroll_data = es.scroll(scroll_id=scroll_id, scroll="1m")
+        scroll_data = es.scroll(scroll_id=scroll_id, scroll="5m")
         scroll_id = scroll_data["_scroll_id"]
         hits = scroll_data["hits"]["hits"]
         if not hits:
@@ -188,6 +189,7 @@ def transform_data(raw_data: list) -> pd.DataFrame:
 
 def push_to_mongodb(df: pd.DataFrame, mongo_uri: str, database: str, collection: str):
     logger.info(f"Connecting to MongoDB at {mongo_uri}, database: {database}, collection: {collection}")
+    global client
     if client is None:
         client = MongoClient(mongo_uri)
     db = client[database]
@@ -207,6 +209,7 @@ def push_to_mongodb(df: pd.DataFrame, mongo_uri: str, database: str, collection:
 
 def check_mongodb_connection(mongo_uri: str, database: str, collection: str):
     logger.info(f"Checking MongoDB connection: {mongo_uri}, DB: {database}, Collection: {collection}")
+    global client
     try:
         if client is None:
             client = MongoClient(mongo_uri)
@@ -245,6 +248,13 @@ def migrate_data_in_chunks(CHUNK_SIZE=100000):
                 check_mongodb_connection(MONGO_HOST, mongo_db, mongo_collection)
             else:
                 push_to_mongodb(transformed_data, MONGO_HOST, mongo_db, mongo_collection)
+
+            i += 1
+            if DEBUG_MODE:
+                logger.info("Debug mode is on, stopping after one iteration")
+                break
+        except Exception as e:
+            logger.error(f"Error during iteration {i}: {e}")
 
 def main():
     logger.info("Starting job")
