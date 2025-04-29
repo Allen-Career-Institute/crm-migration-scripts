@@ -11,8 +11,8 @@ from bson import ObjectId
 
 # Basic auth header values
 ES_HOST = "vpc-staging-discovery-service-1-552nqymgxx4hpi66hbu7u6od6u.ap-south-1.es.amazonaws.com"
-ES_USERNAME = "xxxx"
-ES_PASSWORD = "xxxx"
+ES_USERNAME = "dev_user"
+ES_PASSWORD = "W!zW+IcQF[h%XwD5"
 
 MONGO_USERNAME = "xxxx"
 MONGO_PASSWORD = "xxxx"
@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 def fetch_from_elasticsearch(es_host: str, index: str, limit: int = 0) -> list:
     logger.info(f"Connecting to Elasticsearch at {es_host} for index {index}")
     global es, scroll_id
+    logger.info(f"scroll id: {scroll_id}")
     if es is None:
         es = OpenSearch(
             [es_host],
@@ -51,6 +52,7 @@ def fetch_from_elasticsearch(es_host: str, index: str, limit: int = 0) -> list:
             timeout=60,
         )
 
+    records = []
     if scroll_id is None:
         current_time = int(time.time())
         logger.info(f"Current timestamp for query: {current_time}")
@@ -259,7 +261,7 @@ def migrate_data_in_chunks(CHUNK_SIZE=100000):
 def main():
     logger.info("Starting job")
 
-    migrate_data_in_chunks()
+    migrate_data_in_chunks(2000)
 
     logger.info("Job completed")
 
