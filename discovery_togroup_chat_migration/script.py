@@ -50,7 +50,7 @@ def fetch_from_elasticsearch(es_host: str, index: str, limit: int = 0) -> list:
             connection_class=RequestsHttpConnection,
             timeout=60,
         )
-
+    records=[]
     if scroll_id is None:
         current_time = int(time.time())
         logger.info(f"Current timestamp for query: {current_time}")
