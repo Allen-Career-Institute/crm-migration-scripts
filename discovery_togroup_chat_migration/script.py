@@ -20,6 +20,14 @@ MONGO_HOST = f"mongodb+srv://{MONGO_USERNAME}:{MONGO_PASSWORD}@common-mongo.alle
 
 PAGE_SIZE = 1000
 DEBUG_MODE = False
+es_index = "user_communication"
+mongo_db = "group_db"
+mongo_collection = "message"
+
+# global variables
+scroll_id = None
+es = None
+client = None
 
 # Configure logging based on DEBUG_MODE
 if DEBUG_MODE:
@@ -30,49 +38,54 @@ else:
 logger = logging.getLogger(__name__)
 
 
-def fetch_from_elasticsearch(spark, es_host: str, index: str) -> list:
+def fetch_from_elasticsearch(es_host: str, index: str, limit: int = 0) -> list:
     logger.info(f"Connecting to Elasticsearch at {es_host} for index {index}")
-    es = OpenSearch(
-        [es_host],
-        http_auth=HTTPBasicAuth(ES_USERNAME, ES_PASSWORD),
-        scheme="https",
-        port=443,
-        connection_class=RequestsHttpConnection,
-        timeout=60,
-    )
+    global es, scroll_id
+    if es is None:
+        es = OpenSearch(
+            [es_host],
+            http_auth=HTTPBasicAuth(ES_USERNAME, ES_PASSWORD),
+            scheme="https",
+            port=443,
+            connection_class=RequestsHttpConnection,
+            timeout=60,
+        )
 
-    current_time = int(time.time())
-    logger.info(f"Current timestamp for query: {current_time}")
-    query = {
-        "size": PAGE_SIZE,
-        "query": {
-            "bool": {
-                "should": [
-                    {"range": {"expiry": {"gt": current_time}}},
-                    {"term": {"expiry": 0}}
-                ],
-                "minimum_should_match": 1
-            }
-        },
-        "sort": [
-            {
-                "created_at": {
-                    "order": "asc",
-                    "missing": "_first"
+    if scroll_id is None:
+        current_time = int(time.time())
+        logger.info(f"Current timestamp for query: {current_time}")
+        query = {
+            "size": PAGE_SIZE,
+            "query": {
+                "bool": {
+                    "should": [
+                        {"range": {"expiry": {"gt": current_time}}},
+                        {"term": {"expiry": 0}}
+                    ],
+                    "minimum_should_match": 1
                 }
-            }
-        ]
-    }
+            },
+            "sort": [
+                {
+                    "created_at": {
+                        "order": "asc",
+                        "missing": "_first"
+                    }
+                }
+            ]
+        }
 
-    logger.info("Executing search query")
-    es_data = es.search(index=index, body=query, scroll="1m")
-    scroll_id = es_data["_scroll_id"]
-    records = [hit["_source"] for hit in es_data["hits"]["hits"]]
-    logger.info(f"Fetched {len(records)} records in initial query")
+        logger.info("Executing search query")
+        es_data = es.search(index=index, body=query, scroll="5m")
+        scroll_id = es_data["_scroll_id"]
+        records = [hit["_source"] for hit in es_data["hits"]["hits"]]
+        logger.info(f"Fetched {len(records)} records in initial query")
+    else:
+        logger.info("Using existing scroll ID to fetch more records")
 
     while True:
         logger.debug("Fetching next batch of records using scroll API")
-        scroll_data = es.scroll(scroll_id=scroll_id, scroll="1m")
+        scroll_data = es.scroll(scroll_id=scroll_id, scroll="5m")
         scroll_id = scroll_data["_scroll_id"]
         hits = scroll_data["hits"]["hits"]
         if not hits:
@@ -82,6 +95,9 @@ def fetch_from_elasticsearch(spark, es_host: str, index: str) -> list:
         logger.debug(f"Fetched {len(hits)} additional records")
         if DEBUG_MODE:
             logger.debug("Stopping because of debug mode")
+            break
+        if limit != 0 and len(records) >= limit:
+            logger.info(f"Limit, {limit} reached, stopping fetch")
             break
 
     logger.info(f"Total records fetched: {len(records)}")
@@ -173,7 +189,9 @@ def transform_data(raw_data: list) -> pd.DataFrame:
 
 def push_to_mongodb(df: pd.DataFrame, mongo_uri: str, database: str, collection: str):
     logger.info(f"Connecting to MongoDB at {mongo_uri}, database: {database}, collection: {collection}")
-    client = MongoClient(mongo_uri)
+    global client
+    if client is None:
+        client = MongoClient(mongo_uri)
     db = client[database]
     collection = db[collection]
     records = df.to_dict("records")
@@ -191,8 +209,10 @@ def push_to_mongodb(df: pd.DataFrame, mongo_uri: str, database: str, collection:
 
 def check_mongodb_connection(mongo_uri: str, database: str, collection: str):
     logger.info(f"Checking MongoDB connection: {mongo_uri}, DB: {database}, Collection: {collection}")
+    global client
     try:
-        client = MongoClient(mongo_uri)
+        if client is None:
+            client = MongoClient(mongo_uri)
         db = client[database]
         collection_ref = db[collection]
 
@@ -213,22 +233,33 @@ def generate_id(user_id, msg_id):
     obj = ObjectId(hex_str)
     return obj
 
+def migrate_data_in_chunks(CHUNK_SIZE=100000):
+    i = 0
+    while True:
+        try:
+            logger.info(f"Migration, iteration {i}")
+            raw_data = fetch_from_elasticsearch(ES_HOST, es_index, CHUNK_SIZE)
+            if not raw_data:
+                logger.info("No more data to migrate")
+                break
+            transformed_data = transform_data(raw_data)
+
+            if DEBUG_MODE:
+                check_mongodb_connection(MONGO_HOST, mongo_db, mongo_collection)
+            else:
+                push_to_mongodb(transformed_data, MONGO_HOST, mongo_db, mongo_collection)
+
+            i += 1
+            if DEBUG_MODE:
+                logger.info("Debug mode is on, stopping after one iteration")
+                break
+        except Exception as e:
+            logger.error(f"Error during iteration {i}: {e}")
 
 def main():
     logger.info("Starting job")
 
-    es_index = "user_communication"
-
-    raw_data = fetch_from_elasticsearch(None, ES_HOST, es_index)
-    transformed_data = transform_data(raw_data)
-
-    mongo_db = "group_db"
-    mongo_collection = "message"
-
-    if DEBUG_MODE:
-        check_mongodb_connection(MONGO_HOST, mongo_db, mongo_collection)
-    else:
-        push_to_mongodb(transformed_data, MONGO_HOST, mongo_db, mongo_collection)
+    migrate_data_in_chunks()
 
     logger.info("Job completed")
 
