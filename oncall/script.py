@@ -1,27 +1,33 @@
-from bs4 import BeautifulSoup
+import csv
 from collections import Counter
 import os
 import re
 
-def parse_and_group_issues(file_path):
+def parse_and_group_issues(file_path, output_file):
     if not os.path.exists(file_path):
         print(f"File not found: {file_path}")
         return
 
+    titles = []
     with open(file_path, 'r') as file:
-        content = file.read()
-
-    soup = BeautifulSoup(content, 'html.parser')
-    titles = [
-        re.sub(r"^\[#\d+\]\s+\[.*?\]\s+", "", row.text.strip())  # Remove first two columns
-        for row in soup.select('td.incident a')
-    ]
+        reader = csv.DictReader(file)
+        for row in reader:
+            # Extract and clean the "Title" column
+            title = re.sub(r"^\[FIRING:\d+\]", "", row["Title"].strip())  # Remove metadata
+            titles.append(title.strip())
 
     grouped_counts = Counter(titles)
 
-    for title, count in grouped_counts.items():
-        print(f"{title}\n{count}")
+    # Write the grouped results to a CSV file
+    with open(output_file, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["Title", "Count"])  # Write header
+        for title, count in grouped_counts.items():
+            writer.writerow([title, count])
+
+    print(f"Grouped results have been written to {output_file}")
 
 if __name__ == "__main__":
-    issues_file = "issues.xml"
-    parse_and_group_issues(issues_file)
+    issues_file = "incident_activity_export.csv"
+    output_file = "grouped_issues.csv"
+    parse_and_group_issues(issues_file, output_file)

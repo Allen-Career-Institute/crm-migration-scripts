@@ -1,0 +1,17 @@
+Title,Count
+testing purpose {{$value}} CRM (RDS aws_eks aws ap-south-1-prod-eks prod notification-service notification notification-service notification-service v_49da219__2025_05_06_09_09 go opentelemetry 1.32.0),2
+[prod][notice-board][bff]: noticeBoardDS Failure CRM (SendNoticeDS notice-board-service 500),1
+[prod][notification] Resource notification.v1.notification.createnotification errors/sec has breached threshold CRM,2
+[sales-orchestrator] Region resolution from IP address failures CRM (high sales-orchestrator),3
+[PROD][Notice-board-service] Service API Error Rate CRM (500 notice-board-service),6
+[sales-orchestrator] order confirmed failure breached threshold CRM (high sales-orchestrator),27
+[PROD][Notice-board-service] Service API Error Rate CRM (/v1/notification-center/filter 500 notice-board-service),2
+[PROD][Notice-board-service] Service API Error Rate CRM (/v1/notification-center/unread-count 500 notice-board-service),12
+[sales-orchestrator offline] Salesforce api failure percentage breached threshold CRM (sales-orchestrator),3
+[PROD][Notice-board-service]API wise Error Rate by status code CRM (10 notification-centre),4
+[Prod][notice-board] SQS - ApproximateAgeOfOldestMessage CRM (ap-south-1-prod-notice-board-queue ap-south-1-prod-notice-board-queue  notice-board-service),1
+[prod][notice-board][bff]: noticeBoardDS Failure CRM (GetNoticesDS notice-board-service 500),1
+[sales-orchestrator] Salesforce api failure percentage breached threshold CRM (high sales-orchestrator),3
+Resource post_/v1/devices has an abnormal change in throughput on env:prod CRM,1
+[prod][sales-orchestrator][bff]: salesorchestratorDS Latency is high CRM,2
+[PROD][SQS] High Age of Oldest Message in SQS CRM (SQS high),1
