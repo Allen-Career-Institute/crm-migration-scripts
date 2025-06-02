@@ -200,9 +200,16 @@ def push_to_mongodb(df: pd.DataFrame, mongo_uri: str, database: str, collection:
         collection.insert_many(records, ordered=False)
         logger.info("Data successfully inserted into MongoDB")
     except BulkWriteError as bwe:
-        logger.error("Bulk write error occurred:")
+        # Count successful and failed operations
+        successful = len(records) - len(bwe.details.get('writeErrors', []))
+        failed = len(bwe.details.get('writeErrors', []))
+        
+        # Log only non-duplicate key errors
         for error in bwe.details.get('writeErrors', []):
-            logger.error(f"Error: {error['errmsg']}")
+            if error.get('code') != 11000:  # 11000 is the duplicate key error code
+                logger.error(f"Non-duplicate error: {error['errmsg']}")
+        
+        logger.info(f"Bulk write completed with {successful} successful inserts and {failed} duplicates skipped")
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
 
