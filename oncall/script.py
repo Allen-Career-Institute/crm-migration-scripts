@@ -13,7 +13,7 @@ def parse_and_group_issues(file_path, output_file):
         reader = csv.DictReader(file)
         for row in reader:
             # Extract and clean the "Title" column
-            title = re.sub(r"^\[FIRING:\d+\]", "", row["Title"].strip())  # Remove metadata
+            title = re.sub(r"^\[.+\]", "", row["Title"].strip())  # Remove metadata
             titles.append(title.strip())
 
     grouped_counts = Counter(titles)
